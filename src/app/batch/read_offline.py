@@ -1,18 +1,22 @@
-"""batch-read-offline — BigQuery から特徴量を取得し stdout + GCS JSONL に書き出す。
+"""batch-read-offline — Feature Store REST API で Feature Group / Feature 定義を取得し
+BigQuery offline source から特徴量を読み取る。
 
-Feature Store の Feature Group / Feature として管理された BigQuery 特徴量を
-Cloud Run Job として downstream batch で取得・確認する。
+フロー:
+  1. Feature Group GET  → BigQuery source URI + entity_id_columns を取得
+  2. Feature LIST       → Feature ID 一覧を取得
+  3. SELECT 文を動的生成  → column 直書きなし
+  4. BigQuery クエリ実行 → 結果を stdout + GCS JSONL へ出力
 
-出力:
-  - stdout: [offline-feature][emb_a/emb_b] property_id=... ... (Cloud Logging が受信)
-  - GCS:    gs://{GCS_BUCKET}/offline-batch/{YYYYMMDD}/emb_{a|b}/result.jsonl
-            (Cloud Logging が見づらい場合の代替参照用)
+Feature Group が存在しない場合はバッチ全体を失敗させる。
+Feature View / Online Store / sync / fetchFeatureValues は一切使用しない。
 """
 
 from __future__ import annotations
 
 import json
 import os
+import urllib.error
+import urllib.request
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -20,60 +24,74 @@ from typing import Any
 from google.cloud import bigquery, storage
 
 import app.config as cfg
+from app.common.auth import access_token
 
-_EMB_A_COLS = [
-    "property_id",
-    "rent",
-    "walk_min",
-    "age_years",
-    "area_m2",
-    "emb_a_ctr",
-    "emb_a_fav_rate",
-    "emb_a_semantic_score",
-]
+# ---------------------------------------------------------------------------
+# Feature Store REST helpers
+# ---------------------------------------------------------------------------
 
-_EMB_B_COLS = [
-    "property_id",
-    "rent",
-    "walk_min",
-    "age_years",
-    "area_m2",
-    "emb_b_inquiry_rate",
-    "emb_b_collab_score",
-    "emb_b_engagement",
-]
 
-_SQL_EMB_A = """\
-SELECT
-  property_id,
-  rent,
-  walk_min,
-  age_years,
-  area_m2,
-  emb_a_ctr,
-  emb_a_fav_rate,
-  emb_a_semantic_score
-FROM `{project}.{dataset}.{table}`
-WHERE event_date = CURRENT_DATE("Asia/Tokyo")
-  AND embedding_source = 'emb_a'
-ORDER BY property_id
-"""
+def _request(url: str, *, token: str) -> dict[str, Any]:
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
+        return json.loads(resp.read().decode() or "{}")
 
-_SQL_EMB_B = """\
-SELECT
-  property_id,
-  rent,
-  walk_min,
-  age_years,
-  area_m2,
-  emb_b_inquiry_rate,
-  emb_b_collab_score,
-  emb_b_engagement
-FROM `{project}.{dataset}.{table}`
-WHERE event_date = CURRENT_DATE("Asia/Tokyo")
-  AND embedding_source = 'emb_b'
-ORDER BY property_id
-"""
+
+def _get_feature_group(project: str, region: str, token: str, fg_id: str) -> dict[str, Any]:
+    url = (
+        f"https://{region}-aiplatform.googleapis.com/v1"
+        f"/projects/{project}/locations/{region}/featureGroups/{fg_id}"
+    )
+    try:
+        return _request(url, token=token)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise SystemExit(
+                f"[error] Feature Group が見つかりません: {fg_id}"
+                " (register-fs を先に実行してください)"
+            ) from exc
+        raise
+
+
+def _list_features(project: str, region: str, token: str, fg_id: str) -> list[str]:
+    url = (
+        f"https://{region}-aiplatform.googleapis.com/v1"
+        f"/projects/{project}/locations/{region}/featureGroups/{fg_id}/features"
+    )
+    try:
+        resp = _request(url, token=token)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise SystemExit(f"[error] Feature Group が見つかりません: {fg_id}") from exc
+        raise
+    features = resp.get("features", [])
+    if not features:
+        raise SystemExit(
+            f"[error] Feature Group {fg_id}: features が登録されていません"
+            " (register-fs を先に実行してください)"
+        )
+    return [f["name"].split("/")[-1] for f in features]
+
+
+def _bq_ref(input_uri: str) -> str:
+    """'bq://project.dataset.view' → 'project.dataset.view'"""
+    return input_uri.removeprefix("bq://")
+
+
+def _build_sql(bq_ref: str, entity_id_cols: list[str], feature_ids: list[str]) -> str:
+    cols = ", ".join(entity_id_cols + feature_ids)
+    return (
+        f"SELECT {cols}\n"
+        f"FROM `{bq_ref}`\n"
+        f'WHERE event_date = CURRENT_DATE("Asia/Tokyo")\n'
+        f"ORDER BY property_id"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BQ / GCS helpers
+# ---------------------------------------------------------------------------
 
 
 def _fetch(client: bigquery.Client, sql: str, cols: list[str]) -> list[dict[str, Any]]:
@@ -103,6 +121,11 @@ def _upload_gcs(
     print(f"==> uploaded gs://{bucket_name}/{blob_name}")
 
 
+# ---------------------------------------------------------------------------
+# run
+# ---------------------------------------------------------------------------
+
+
 def run() -> None:
     project_id = cfg.PROJECT_ID
     if not project_id:
@@ -116,17 +139,32 @@ def run() -> None:
     if not bucket_name:
         raise SystemExit("[error] GCS_BUCKET is empty")
 
+    region = cfg.REGION
     today = date.today().strftime("%Y%m%d")
+    token = access_token()
     bq_client = bigquery.Client(project=project_id)
 
-    tmpl_args = dict(project=project_id, dataset=cfg.DATASET, table=cfg.TABLE)
-
-    for source, sql_tmpl, cols in [
-        ("emb_a", _SQL_EMB_A, _EMB_A_COLS),
-        ("emb_b", _SQL_EMB_B, _EMB_B_COLS),
+    for source, fg_id in [
+        ("emb_a", cfg.FG_EMB_A),
+        ("emb_b", cfg.FG_EMB_B),
     ]:
-        sql = sql_tmpl.format(**tmpl_args)
-        rows = _fetch(bq_client, sql, cols)
+        print(f"==> [{source}] Feature Group: {fg_id}")
+
+        # Step 1: Feature Group から BigQuery source URI を取得
+        fg = _get_feature_group(project_id, region, token, fg_id)
+        bq_source_uri = fg["bigQuery"]["bigQuerySource"]["inputUri"]
+        entity_id_cols = fg["bigQuery"].get("entityIdColumns", ["property_id"])
+        print(f"==> [{source}] BQ source: {bq_source_uri}")
+
+        # Step 2: Feature 一覧を取得
+        feature_ids = _list_features(project_id, region, token, fg_id)
+        print(f"==> [{source}] Features ({len(feature_ids)}): {feature_ids}")
+
+        # Step 3: SELECT 文を動的生成して BigQuery クエリ実行
+        bq_ref = _bq_ref(bq_source_uri)
+        all_cols = entity_id_cols + feature_ids
+        sql = _build_sql(bq_ref, entity_id_cols, feature_ids)
+        rows = _fetch(bq_client, sql, all_cols)
 
         if not rows:
             print(f"[warn] {source}: 0 rows (load-bq を先に実行したか確認)")
