@@ -136,6 +136,7 @@ def run() -> None:
         _log_rows(rows, source)
 
         local_path = Path(f"/tmp/result_{source}_{today}.jsonl")
+        local_path.parent.mkdir(parents=True, exist_ok=True)
         _write_jsonl(rows, local_path)
 
         blob_name = f"{cfg.GCS_PREFIX}/{today}/{source}/result.jsonl"

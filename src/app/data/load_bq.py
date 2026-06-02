@@ -46,12 +46,11 @@ EMB_B_COLS = [
 
 
 def _data_dir() -> Path:
-    here = Path(__file__).resolve().parent
-    for _ in range(4):
-        candidate = here / "data"
-        if candidate.is_dir():
-            return candidate
-        here = here.parent
+    # src/app/data/load_bq.py → .parent×3 = src/ → data/
+    # Docker /app/app/data/load_bq.py → .parent×3 = /app/ → data/
+    candidate = Path(__file__).resolve().parents[2] / "data"
+    if candidate.is_dir():
+        return candidate
     return Path("data")
 
 
