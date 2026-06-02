@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクトの目的
 
-不動産物件のサンプルデータを題材に、**BigQuery に蓄積した特徴量を Vertex AI Feature Store (Feature Group / Feature) に登録し、Python batch からオフライン特徴量として取得・検証する**学習用プロジェクト。詳細仕様は [docs/01_仕様書.md](docs/01_仕様書.md) を参照。
+不動産物件のサンプルデータを題材に、**BigQuery に蓄積した特徴量を Vertex AI Feature Store (Feature Group / Feature) に登録し、Python batch からオフライン特徴量として取得・検証する**学習用プロジェクト。詳細仕様は [docs/02_仕様書.md](docs/02_仕様書.md) を参照。
 
 学習対象は「BigQuery = 特徴量データの実体・加工場所」「Feature Store = 特徴量の管理・メタデータ・参照レイヤー」という責務分離を実機で理解すること。**Feature Store の利用範囲は Offline のみ**。Online Store / Feature View / sync は本プロジェクトのスコープ外。
 
 ## 現状
 
-**実装済み・GCP 動作検証完了 (2026-06-02)**。仕様は [docs/01_仕様書.md](docs/01_仕様書.md)、運用は [docs/03_運用.md](docs/03_運用.md)。
+**実装済み・GCP 動作検証完了 (2026-06-02)**。仕様は [docs/02_仕様書.md](docs/02_仕様書.md)、運用は [docs/05_運用.md](docs/05_運用.md)。
 
 ## アーキテクチャ (データフロー)
 
@@ -68,9 +68,9 @@ infra/
     outputs.tf
   Dockerfile
 docs/
-  01_仕様書.md
-  02_実装カタログ.md
-  03_運用.md
+  02_仕様書.md
+  03_実装カタログ.md
+  05_運用.md
 tests/
   conftest.py
   test_main.py / test_seed_csv.py / test_load_bq.py / test_register.py / test_read_offline.py
