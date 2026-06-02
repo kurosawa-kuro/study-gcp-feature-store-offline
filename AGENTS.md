@@ -16,41 +16,35 @@ Feature Store の利用範囲は Offline のみです。Online Store / Feature V
 
 ## 現状
 
-2026-06-02 時点では仕様策定済み・実装前です。README.md と Makefile はまだ空に近い状態のため、実装時はドキュメントの仕様を canonical として扱ってください。
+**実装済み・GCP 動作検証完了 (2026-06-02 / mlops-dev-a)**。
 
-## 想定構成
+確認済み事項:
+- Feature Group ID はアンダースコア必須: `fg_property_emb_a` / `fg_property_emb_b`
+- Cloud Run jobs 全 4 件成功 (seed-csv / load-bq / register-fs / batch-read)
+- batch-read-offline: Feature Store REST API で BQ source + Feature ID を解決し BigQuery offline read
 
-仕様上の予定構成は次の通りです。新規ファイルを追加する場合は、まずこの構成に寄せてください。
+## 実際の構成
 
 ```text
-app/
-  main.py
-  config.py
+src/
+  app/
+    main.py
+    config.py
+    common/auth.py
+    data/seed_csv.py / load_bq.py
+    feature_store/register.py
+    batch/read_offline.py
   data/
-    seed_csv.py
-    load_bq.py
-  feature_store/
-    register.py
-  batch/
-    read_offline.py
-infra/
-  terraform/
-    bigquery.tf
-    feature_store.tf
-    iam.tf
-  Dockerfile
-data/
-  feature.csv
+    feature_emb_a.csv / feature_emb_b.csv
+infra/terraform/main.tf / providers.tf / variables.tf / outputs.tf
+infra/Dockerfile
+tests/
+  conftest.py / test_*.py (36 tests)
 docs/
-  01_仕様書.md
-  02_実装カタログ.md
-  03_運用.md
-Makefile
+Makefile / pyproject.toml
 ```
 
 ## 主要コマンド
-
-実装後に想定している Python batch コマンドです。
 
 ```bash
 python -m app.main seed-csv
@@ -59,20 +53,14 @@ python -m app.main register-fs
 python -m app.main batch-read-offline
 ```
 
-Makefile ターゲットは次を想定しています。
-
 ```bash
 make tf-init
-make check
-make deploy
-make seed-csv
-make load-bq
-make register-fs
-make batch-read
+make check        # ruff + terraform fmt -check + validate (GCP 不要)
+make deploy       # AR apply → build-push → terraform apply
+make seed-csv / load-bq / register-fs / batch-read
+make verify-bq / verify-gcs
 make destroy
 ```
-
-`make check` は、GCP リソースへ変更を加えない検証として `ruff`、`terraform fmt -check`、`terraform validate` を行う想定です。
 
 ## 実装方針
 

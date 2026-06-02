@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 現状
 
-**仕様策定済み・実装前** (2026-06-02)。仕様は [docs/01_仕様書.md](docs/01_仕様書.md)。
+**実装済み・GCP 動作検証完了 (2026-06-02)**。仕様は [docs/01_仕様書.md](docs/01_仕様書.md)、運用は [docs/03_運用.md](docs/03_運用.md)。
 
 ## アーキテクチャ (データフロー)
 
@@ -31,6 +31,8 @@ Vertex AI Feature Store
        └─ Feature × 7  rent / walk_min / age_years / area_m2 / emb_b_inquiry_rate / emb_b_collab_score / emb_b_engagement
     ↓
 Python batch (batch-read-offline / Cloud Run Job)
+    Feature Store REST API で Feature Group / Feature を取得し BQ View・Feature ID を解決
+    BigQuery offline read (動的 SELECT)
     ↓
 stdout ログ (Cloud Logging) + GCS JSONL (property_id ごとの特徴量取得結果)
 ```
@@ -39,51 +41,62 @@ stdout ログ (Cloud Logging) + GCS JSONL (property_id ごとの特徴量取得�
 
 ## 構成
 
-予定ファイル構成 (仕様書 §9 より):
+実際のファイル構成:
 
 ```
-app/
-  main.py               # エントリポイント / dispatch table
-  config.py
+src/
+  app/
+    main.py               # エントリポイント / dispatch table
+    config.py
+    common/
+      auth.py             # ADC access token 取得
+    data/
+      seed_csv.py         # feature_emb_a.csv / feature_emb_b.csv 生成
+      load_bq.py          # CSV → BigQuery ロード
+    feature_store/
+      register.py         # BQ View + Feature Group / Feature 登録
+    batch/
+      read_offline.py     # Feature Store REST API → BigQuery offline read → ログ出力
   data/
-    seed_csv.py         # feature.csv 生成
-    load_bq.py          # feature.csv → BigQuery ロード
-  feature_store/
-    register.py         # Feature Group / Feature 登録
-  batch/
-    read_offline.py     # BigQuery から特徴量取得 → ログ出力
+    feature_emb_a.csv
+    feature_emb_b.csv
 infra/
   terraform/
-    bigquery.tf
-    feature_store.tf    # Feature Group / Feature のみ (Online Store・Feature View は作成しない)
-    iam.tf
+    main.tf               # 全リソース (BQ / Feature Store / SA / GCS / Cloud Run)
+    providers.tf
+    variables.tf
+    outputs.tf
   Dockerfile
-data/
-  feature.csv
 docs/
   01_仕様書.md
   02_実装カタログ.md
   03_運用.md
+tests/
+  conftest.py
+  test_main.py / test_seed_csv.py / test_load_bq.py / test_register.py / test_read_offline.py
 Makefile
+pyproject.toml
 ```
 
 ## コマンド
 
 ```bash
 # Python batch (Cloud Run Jobs またはローカル実行)
-python -m app.main seed-csv            # feature.csv を作成
-python -m app.main load-bq             # feature.csv を BigQuery へロード
-python -m app.main register-fs         # BigQuery テーブルを Feature Group / Feature として登録
-python -m app.main batch-read-offline  # BigQuery / FS Offline 管理下の特徴量を取得してログ出力
+python -m app.main seed-csv            # feature_emb_a.csv / feature_emb_b.csv を作成
+python -m app.main load-bq             # CSV を BigQuery へロード
+python -m app.main register-fs         # BQ View + Feature Group / Feature を登録
+python -m app.main batch-read-offline  # Feature Store REST API → BigQuery offline read → ログ出力
 
-# Makefile ターゲット (予定)
+# Makefile ターゲット
 make tf-init        # terraform init
 make check          # ruff + terraform fmt -check + validate (GCP に触れない)
 make deploy         # AR apply → image build/push → terraform apply
-make seed-csv       # Cloud Run job: feature.csv 生成
+make seed-csv       # Cloud Run job: CSV 生成
 make load-bq        # Cloud Run job: BigQuery ロード
-make register-fs    # Cloud Run job: Feature Group / Feature 登録
-make batch-read     # Cloud Run job: offline batch 取得 → ログ
+make register-fs    # Cloud Run job: Feature Group / Feature 登録 (Terraform 済みは 409 skip)
+make batch-read     # Cloud Run job: Feature Store → BigQuery offline read → stdout + GCS
+make verify-bq      # embedding_source 別行数確認
+make verify-gcs     # GCS JSONL 確認
 make destroy        # 全リソース撤去
 ```
 
