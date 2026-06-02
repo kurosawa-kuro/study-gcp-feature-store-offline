@@ -68,8 +68,10 @@ infra/
     outputs.tf
   Dockerfile
 docs/
+  01_Feature-store入門.md
   02_仕様書.md
   03_実装カタログ.md
+  04_重要コード説明.md
   05_運用.md
 tests/
   conftest.py

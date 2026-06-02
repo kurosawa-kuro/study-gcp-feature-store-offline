@@ -267,10 +267,11 @@ Feature Store Offline を学ぶときは、Feature Group / Feature の登録だ�
 
 このプロジェクトを触るときは、次の順で読むと迷いにくいです。
 
-1. [02_仕様書.md](02_仕様書.md)
-2. [01_Feature-store入門.md](01_Feature-store入門.md)
+1. [01_Feature-store入門.md](01_Feature-store入門.md)
+2. [02_仕様書.md](02_仕様書.md)
 3. [03_実装カタログ.md](03_実装カタログ.md)
-4. [05_運用.md](05_運用.md)
+4. [04_重要コード説明.md](04_重要コード説明.md)
+5. [05_運用.md](05_運用.md)
 
 実装フローは仕様書のコマンドに対応します。
 

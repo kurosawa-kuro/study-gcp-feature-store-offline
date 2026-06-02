@@ -100,6 +100,8 @@ make destroy
 ## 参照先
 
 - [CLAUDE.md](CLAUDE.md): プロジェクト背景、詳細なデータフロー、コマンド、スコープ
+- [docs/01_Feature-store入門.md](docs/01_Feature-store入門.md): Feature Store Offline 入門
 - [docs/02_仕様書.md](docs/02_仕様書.md): 仕様
 - [docs/03_実装カタログ.md](docs/03_実装カタログ.md): 実装候補・カタログ
+- [docs/04_重要コード説明.md](docs/04_重要コード説明.md): 重要コードとメソッド関係図
 - [docs/05_運用.md](docs/05_運用.md): 運用手順

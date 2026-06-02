@@ -79,7 +79,9 @@ make destroy
 
 | ドキュメント | 内容 |
 |---|---|
+| [docs/01_Feature-store入門.md](docs/01_Feature-store入門.md) | Feature Store Offline / BigQuery 連携の入門 |
 | [docs/02_仕様書.md](docs/02_仕様書.md) | 方針・スキーマ・コマンド仕様 |
 | [docs/03_実装カタログ.md](docs/03_実装カタログ.md) | Terraform リソース・Python 実装・設計判断 |
+| [docs/04_重要コード説明.md](docs/04_重要コード説明.md) | 重要コードとメソッド関係図 |
 | [docs/05_運用.md](docs/05_運用.md) | デプロイ・実行・検証・撤去手順 |
 | [CLAUDE.md](CLAUDE.md) | Claude Code 向け作業ガイド |
