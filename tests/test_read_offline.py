@@ -23,8 +23,8 @@ from tests.conftest import FakeBucket, FakeStorageClient
 
 _PROJECT = "proj"
 _REGION = "asia-northeast1"
-_FG_EMB_A = "fg-property-emb-a"
-_FG_EMB_B = "fg-property-emb-b"
+_FG_EMB_A = "fg_property_emb_a"
+_FG_EMB_B = "fg_property_emb_b"
 
 _FG_A_RESPONSE = {
     "name": f"projects/{_PROJECT}/locations/{_REGION}/featureGroups/{_FG_EMB_A}",

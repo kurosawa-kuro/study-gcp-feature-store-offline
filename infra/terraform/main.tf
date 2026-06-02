@@ -140,7 +140,7 @@ resource "google_bigquery_table" "v_property_features_emb_b" {
 resource "google_vertex_ai_feature_group" "emb_a" {
   provider = google-beta
 
-  name        = "fg-property-emb-a"
+  name        = "fg_property_emb_a"
   region      = var.region
   description = "テキスト属性埋め込み由来スコア + 共通特徴量 (BQ View emb_a 参照)"
 
@@ -169,7 +169,7 @@ resource "google_vertex_ai_feature_group_feature" "emb_a" {
 resource "google_vertex_ai_feature_group" "emb_b" {
   provider = google-beta
 
-  name        = "fg-property-emb-b"
+  name        = "fg_property_emb_b"
   region      = var.region
   description = "行動ログ埋め込み由来スコア + 共通特徴量 (BQ View emb_b 参照)"
 

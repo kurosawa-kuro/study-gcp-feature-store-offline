@@ -12,8 +12,8 @@ TABLE = "property_features_daily"
 VIEW_EMB_A = "v_property_features_emb_a"
 VIEW_EMB_B = "v_property_features_emb_b"
 
-FG_EMB_A = "fg-property-emb-a"
-FG_EMB_B = "fg-property-emb-b"
+FG_EMB_A = "fg_property_emb_a"
+FG_EMB_B = "fg_property_emb_b"
 
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "")
 GCS_PREFIX = "offline-batch"
